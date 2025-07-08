@@ -16,3 +16,5 @@ textstat>=0.7.0
 spacy>=3.2.0
 scikit-learn>=1.0.0
 textract>=1.6.5
+google-generativeai
+python-dotenv

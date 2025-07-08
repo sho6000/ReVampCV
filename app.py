@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -528,112 +529,93 @@ def main():
             
 
 def display_optimizer_tab(st_session_state):
-    """Advanced Resume Optimizer with semantic analysis and ethical rewriting"""
+    """Advanced Resume Optimizer with Gemini AI"""
     st.markdown("### 🚀 AI-Powered Resume Optimizer")
-    st.markdown("Enhance your resume content while maintaining honesty and authenticity.")
+    st.markdown("Enhance your resume content using Google's Gemini AI while maintaining honesty and authenticity.")
     
-    # Initialize optimization components
-    if 'optimization_ready' not in st.session_state:
-        with st.spinner("Loading optimization models..."):
-            try:
-                # Import advanced libraries (add these to your imports at the top)
-                from sentence_transformers import SentenceTransformer
-                import re
-                
-                # Load semantic similarity model
-                st.session_state.semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
-                st.session_state.optimization_ready = True
-            except ImportError:
-                st.error("Please install required libraries: pip install sentence-transformers")
-                return
-    
-    # Extract resume sections using NLP
-    resume_sections = extract_resume_sections(st_session_state.resume_text)
-    jd_requirements = extract_jd_requirements(st_session_state.jd_text)
+    # Check if API key is configured
+    if not os.getenv('GOOGLE_API_KEY'):
+        st.error("⚠️ Gemini API key not configured. Please add your GOOGLE_API_KEY to the .env file.")
+        return
     
     # Create optimization tabs
-    opt_tabs = st.tabs(["Content Analysis", "Bullet Point Optimizer", "Keyword Enhancement", "ATS Optimization"])
+    opt_tabs = st.tabs(["AI Suggestions", "Content Optimizer", "Keyword Enhancement", "ATS Optimization"])
     
-    with opt_tabs[0]:  # Content Analysis
-        st.markdown("#### 📊 Resume Content Analysis")
+    with opt_tabs[0]:  # AI Suggestions
+        st.markdown("#### 🤖 AI-Generated Improvement Suggestions")
         
-        # Semantic similarity analysis
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("##### Current Resume Strengths")
-            
-            # Analyze each resume section against JD
-            if resume_sections.get('experience'):
-                experience_score = calculate_semantic_similarity(
-                    resume_sections['experience'], 
+        if st.button("Generate AI Suggestions", use_container_width=True):
+            with st.spinner("Generating personalized suggestions with Gemini AI..."):
+                suggestions = generate_resume_suggestions_with_gemini(
+                    st_session_state.resume_text,
                     st_session_state.jd_text
                 )
-                st.metric("Experience Alignment", f"{experience_score:.1f}%")
                 
-                # Show top matching bullet points
-                if st.checkbox("Show matching experience points"):
-                    matching_bullets = find_matching_bullets(
-                        resume_sections['experience'],
-                        jd_requirements,
-                        threshold=0.3
+                # Store in session state to persist across page refreshes
+                st.session_state.ai_suggestions = suggestions
+        
+        # Display suggestions if they exist in session state
+        if hasattr(st.session_state, 'ai_suggestions') and st.session_state.ai_suggestions:
+            st.markdown("### 📝 Personalized Recommendations")
+            st.markdown(st.session_state.ai_suggestions)
+            
+            # Add a button to clear suggestions
+            if st.button("Clear Suggestions"):
+                if 'ai_suggestions' in st.session_state:
+                    del st.session_state.ai_suggestions
+                st.rerun()
+    
+    with opt_tabs[1]:  # Content Optimizer
+        st.markdown("#### ✏️ AI-Powered Content Enhancement")
+        
+        # Section selector
+        section_type = st.selectbox(
+            "Select section to optimize:",
+            ["experience", "summary", "skills", "education"]
+        )
+        
+        # Text area for manual input
+        current_content = st.text_area(
+            f"Enter your current {section_type} section:",
+            height=150,
+            placeholder=f"Paste your {section_type} content here..."
+        )
+        
+        if st.button("Optimize with AI", use_container_width=True):
+            if current_content:
+                with st.spinner("Optimizing content with Gemini AI..."):
+                    optimized_content = optimize_resume_with_gemini(
+                        current_content,
+                        st_session_state.jd_text,
+                        section_type
                     )
-                    for bullet in matching_bullets[:3]:
-                        st.success(f"✅ {bullet}")
-            
-            if resume_sections.get('skills'):
-                skills_score = calculate_semantic_similarity(
-                    resume_sections['skills'],
-                    st_session_state.jd_text
-                )
-                st.metric("Skills Alignment", f"{skills_score:.1f}%")
-        
-        with col2:
-            st.markdown("##### Improvement Opportunities")
-            
-            # Identify weak sections
-            weak_sections = identify_weak_sections(resume_sections, jd_requirements)
-            
-            # Replace nested expanders with simple containers
-            for section, suggestions in weak_sections.items():
-                st.markdown(f"**Improve {section.title()} Section:**")
-                for suggestion in suggestions:
-                    st.info(f"💡 {suggestion}")
-                st.markdown("---")
-    
-    with opt_tabs[1]:  # Bullet Point Optimizer
-        st.markdown("#### ✏️ Intelligent Bullet Point Enhancement")
-        st.markdown("Select bullet points to optimize while maintaining accuracy:")
-        
-        if resume_sections.get('experience'):
-            bullets = extract_bullet_points(resume_sections['experience'])
-            
-            # Display each bullet with optimization option
-            for i, bullet in enumerate(bullets):
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.markdown(f"**Original:** {bullet}")
                     
-                    # Calculate relevance score
-                    relevance = calculate_bullet_relevance(bullet, jd_requirements)
-                    if relevance < 0.3:
-                        st.warning(f"Low relevance ({relevance:.2f}) - Consider optimization")
-                    else:
-                        st.success(f"Good relevance ({relevance:.2f})")
-                
-                with col2:
-                    if st.button(f"Optimize", key=f"opt_{i}"):
-                        optimized_bullet = optimize_bullet_point(bullet, jd_requirements)
-                        st.markdown("**Optimized:**")
-                        st.info(optimized_bullet)
-                        
-                        # Show what changed
-                        changes = highlight_changes(bullet, optimized_bullet)
-                        with st.expander("View Changes"):
-                            st.markdown(changes, unsafe_allow_html=True)
-                
-                st.markdown("---")
+                    # Store in session state
+                    st.session_state.optimized_content = optimized_content
+                    st.session_state.original_content = current_content
+            else:
+                st.warning("Please enter content to optimize")
+        
+        # Display optimized content if it exists in session state
+        if hasattr(st.session_state, 'optimized_content') and st.session_state.optimized_content:
+            st.markdown("### 📄 Optimized Content")
+            st.markdown("**Original:**")
+            st.info(st.session_state.original_content)
+            
+            st.markdown("**AI-Optimized:**")
+            st.success(st.session_state.optimized_content)
+            
+            # Copy to clipboard button
+            st.markdown("---")
+            st.markdown("*Copy the optimized content above to use in your resume*")
+            
+            # Add a button to clear results
+            if st.button("Clear Results"):
+                if 'optimized_content' in st.session_state:
+                    del st.session_state.optimized_content
+                if 'original_content' in st.session_state:
+                    del st.session_state.original_content
+                st.rerun()
     
     with opt_tabs[2]:  # Keyword Enhancement
         st.markdown("#### 🔍 Strategic Keyword Enhancement")
@@ -660,6 +642,8 @@ def display_optimizer_tab(st_session_state):
         with col2:
             st.markdown("##### Suggested Placement")
             
+            # Extract resume sections before suggesting keyword placement
+            resume_sections = extract_resume_sections(st_session_state.resume_text)
             # Suggest where to place keywords
             placement_suggestions = suggest_keyword_placement(missing_keywords, resume_sections)
             
@@ -974,4 +958,81 @@ def generate_ats_recommendations(issues, resume_text):
     
     return recommendations  # Add this missing return statement
 
+import google.generativeai as genai
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure Gemini API
+genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+
+def optimize_resume_with_gemini(resume_text, jd_text, section_type="experience"):
+    """Use Gemini to optimize resume content"""
+    try:
+        # Initialize Gemini model with the correct model name
+        model = genai.GenerativeModel('gemini-2.0-flash')  # Changed from 'gemini-pro'
+        
+        # Create optimization prompt
+        prompt = f"""
+        As a professional resume writer, help optimize this resume section for the given job description.
+        
+        **Job Description:**
+        {jd_text[:1000]}...
+        
+        **Current Resume Section ({section_type}):**
+        {resume_text}
+        
+        **Instructions:**
+        1. Rewrite the resume section to better align with the job description
+        2. Use strong action verbs and quantifiable achievements
+        3. Include relevant keywords from the job description naturally
+        4. Maintain honesty - don't add false information
+        5. Keep the same experience and skills, just improve the presentation
+        6. Format as bullet points where appropriate
+        
+        **Optimized Resume Section:**
+        """
+        
+        # Generate optimized content
+        response = model.generate_content(prompt)
+        return response.text
+        
+    except Exception as e:
+        st.error(f"Error optimizing with Gemini: {str(e)}")
+        return "Error occurred during optimization"
+
+def generate_resume_suggestions_with_gemini(resume_text, jd_text):
+    """Generate improvement suggestions using Gemini"""
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')  # Changed from 'gemini-pro'
+        
+        prompt = f"""
+        As an expert resume reviewer, analyze this resume against the job description and provide specific improvement suggestions.
+        
+        **Job Description:**
+        {jd_text[:1000]}...
+        
+        **Resume:**
+        {resume_text[:1500]}...
+        
+        **Please provide:**
+        1. Top 5 specific improvements needed
+        2. Missing keywords that should be added
+        3. Suggested action verbs to use
+        4. Recommendations for quantifying achievements
+        5. Overall strategy for better alignment
+        
+        Format your response with clear sections and bullet points.
+        """
+        
+        response = model.generate_content(prompt)
+        return response.text
+        
+    except Exception as e:
+        error_msg = f"Error generating suggestions: {str(e)}"
+        st.error(error_msg)
+        return error_msg
+    
 main()
